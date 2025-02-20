@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 """
 Пользователи и роли
@@ -9,28 +10,31 @@ class Info(models.Model):
     """
     Модель для хранения информации о пользователях.
     """
-    YES_NO_CHOICES = [
-        (0, "Нет"),
-        (1, "Да"),
-    ]
+    # YES_NO_CHOICES = [
+    #     (0, "Нет"),
+    #     (1, "Да"),
+    # ]
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Django User",
+                                related_name="info")
 
+    external_auth_id = models.UUIDField(unique=True, null=True, blank=True, verbose_name="ID в Auth-сервисе")
     group_account = models.CharField(max_length=255, null=True, blank=True, verbose_name="Групповая учетная запись")
     full_name = models.CharField(max_length=255, null=True, blank=True, verbose_name="ФИО")
     position = models.CharField(max_length=255, null=True, blank=True, verbose_name="Должность")
-    specialist_expl_unit = models.CharField(choices=YES_NO_CHOICES, max_length=255, null=True, blank=True,
-                                            verbose_name="Специалист эксплуатационного подразделения")
-    head_expl_unit = models.CharField(choices=YES_NO_CHOICES, max_length=255, null=True, blank=True,
-                                      verbose_name="Руководитель эксплуатационного подразделения")
-    specialist_itc_service = models.CharField(choices=YES_NO_CHOICES, max_length=255, null=True, blank=True,
-                                              verbose_name="Специалист службы ИТЦ")
-    head_itc_service = models.CharField(choices=YES_NO_CHOICES, max_length=255, null=True, blank=True,
-                                        verbose_name="Руководитель службы ИТЦ")
-    production_diagnostic_department = models.CharField(choices=YES_NO_CHOICES, max_length=255, null=True, blank=True,
-                                                        verbose_name="Производственно-диагностический отдел")
-    head_corporate_supervision = models.CharField(choices=YES_NO_CHOICES, max_length=255, null=True, blank=True,
-                                                  verbose_name="Руководитель корпоративного надзора")
+    specialist_expl_unit = models.BooleanField(default=False, blank=True,
+                                               verbose_name="Специалист эксплуатационного подразделения")
+    head_expl_unit = models.BooleanField(default=False, blank=True,
+                                         verbose_name="Руководитель эксплуатационного подразделения")
+    specialist_itc_service = models.BooleanField(default=False, blank=True,
+                                                 verbose_name="Специалист службы ИТЦ")
+    head_itc_service = models.BooleanField(default=False, blank=True,
+                                           verbose_name="Руководитель службы ИТЦ")
+    production_diagnostic_department = models.BooleanField(default=False, blank=True,
+                                                           verbose_name="Производственно-диагностический отдел")
+    head_corporate_supervision = models.BooleanField(default=False, blank=True,
+                                                     verbose_name="Руководитель корпоративного надзора")
     email = models.EmailField(max_length=255, null=True, blank=True, verbose_name="Email")
-    access_rights_arm = models.BooleanField(default=False, max_length=255, null=True, blank=True,
+    access_rights_arm = models.BooleanField(default=False, blank=True,
                                             verbose_name="Наличие прав доступа к АРМ")
     active_account = models.BooleanField(default=True, verbose_name="Активный аккаунт")
 
@@ -40,20 +44,6 @@ class Info(models.Model):
 
     def __str__(self):
         return self.full_name if self.full_name else "UserInfo object"
-
-
-class Administrator(models.Model):
-    """
-    Модель для хранения информации об админимстраторах (?).
-    """
-    auto_card_number = models.IntegerField(null=True, blank=True, verbose_name="Номер карты")  # это что
-
-    class Meta:
-        verbose_name = "Администратор"
-        verbose_name_plural = "Администраторы"
-
-    def __str__(self):
-        return f"Администратор {self.auto_card_number}" if self.auto_card_number else "Администратор (без номера)"
 
 
 class UserRole(models.Model):
@@ -71,14 +61,30 @@ class UserRole(models.Model):
         return self.name if self.name else f"Роль {self.id}"
 
 
+class Administrator(models.Model):
+    """
+    Модель для хранения информации об админимстраторах (?).
+    """
+    user = models.OneToOneField(Info, on_delete=models.CASCADE, verbose_name="Пользователь")
+    role = models.ForeignKey(UserRole, on_delete=models.CASCADE, verbose_name="Роль администратора")
+    auto_card_number = models.CharField(max_length=20, null=True, blank=True, verbose_name="Номер карты")
+
+    class Meta:
+        verbose_name = "Администратор"
+        verbose_name_plural = "Администраторы"
+
+    def __str__(self):
+        return f"Администратор {self.auto_card_number}" if self.auto_card_number else "Администратор (без номера)"
+
+
 class UserSetting(models.Model):
     """
     Модель для хранения конфигураций пользователя.
     """
     id = models.AutoField(primary_key=True, verbose_name="ID")
     network_name = models.CharField(max_length=30, null=True, blank=True, verbose_name="Сетевое имя")
-    auto_card_number = models.IntegerField(null=True, blank=True, verbose_name="Номер автокарты")
-    ini_file = models.BinaryField(null=True, blank=True, verbose_name="INI-файл")
+    auto_card_number = models.IntegerField(null=True, blank=True, verbose_name="Номер карты")
+    ini_file = models.FileField(null=True, blank=True, verbose_name="INI-файл")
     ini_file_name = models.CharField(max_length=100, null=True, blank=True, verbose_name="Название INI-файла")
 
     class Meta:
@@ -94,8 +100,9 @@ class UsersList(models.Model):
     Модель для хранения информации о списках пользователях.
     """
     id = models.AutoField(primary_key=True, verbose_name="ID")
-    auto_card = models.IntegerField(null=True, blank=True, verbose_name="Номер карты")
-    id_role = models.IntegerField(null=True, blank=True, verbose_name="ID роли")
+    auto_card = models.ForeignKey(UserSetting, on_delete=models.SET_NULL, null=True, blank=True,
+                                  verbose_name="Номер карты")
+    role = models.ForeignKey(UserRole, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="ID роли")
 
     class Meta:
         verbose_name = "Список пользователей"
@@ -115,7 +122,8 @@ class StructuralUnitTree(models.Model):
     Модель, представляющая Дерево структурного подразделения.
     """
     id = models.AutoField(primary_key=True, verbose_name="ID")
-    parent_unit = models.IntegerField(null=True, blank=True, verbose_name="Родительское подразделение")
+    parent_unit = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
+                                    verbose_name="Родительское подразделение")
     unit_code = models.IntegerField(null=True, blank=True, verbose_name="Код подразделения")
     level = models.SmallIntegerField(null=True, blank=True, verbose_name="Уровень в иерархии")
     firm_id = models.IntegerField(null=True, blank=True, verbose_name="ID организации")
@@ -164,41 +172,61 @@ class Appointment(models.Model):
 
 
 """
-Журналы
+Опасные объекты и надзор
 """
 
 
-class EPBJournal(models.Model):
+class TypeOPO(models.Model):
     """
-    Модель для хранения записей в журнале эксплуатационной безопасности (ЭПБ).
+    Модель для хранения информации о типах ОПО
     """
-    id = models.AutoField(primary_key=True, verbose_name="ID")
-    epb_date = models.DateTimeField(null=True, blank=True, verbose_name="Дата ЭПБ")
-    tu_id = models.IntegerField(null=True, blank=True, verbose_name="ID технического устройства")
-    epb_conclusion = models.CharField(max_length=200, null=True, blank=True, verbose_name="Вывод ЭПБ")
+    id = models.IntegerField(primary_key=True, default=0, verbose_name="ID")
+    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название")
+    short_name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Краткое название")
+    reg_number = models.CharField(max_length=200, null=True, blank=True, verbose_name="Регистрационный номер")
 
     class Meta:
-        verbose_name = "Журнал ЭПБ"
-        verbose_name_plural = "Журналы ЭПБ"
+        verbose_name = "Тип ОПО"
+        verbose_name_plural = "Типы ОПО"
 
     def __str__(self):
-        return f"{self.epb_date} - {self.epb_conclusion}" if self.epb_conclusion else f"Журнал ЭПБ {self.id}"
+        return self.name or self.reg_number or str(self.id)
 
 
-class InspectionJournal(models.Model):
+class OPO(models.Model):
     """
-    Модель для хранения записей о проверках.
+    Модель для хранения информации об ОПО
     """
-    id = models.AutoField(primary_key=True, verbose_name="ID")
-    inspection_date = models.DateTimeField(null=True, blank=True, verbose_name="Дата проверки")
-    technical_unit_id = models.IntegerField(null=True, blank=True, verbose_name="ID технического устройства")
+    id = models.BigIntegerField(primary_key=True, verbose_name="ID ОПО")
+    type_id = models.ForeignKey(TypeOPO, on_delete=models.CASCADE, verbose_name="ID типа ОПО")
+    structural_unit_id = models.ForeignKey(StructuralUnitTree, on_delete=models.CASCADE,
+                                           verbose_name="ID структурного подразделения")
+    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название")
+    short_name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Краткое название")
+    reg_number = models.CharField(max_length=100, null=True, blank=True, verbose_name="Регистрационный номер")
 
     class Meta:
-        verbose_name = "Журнал проверок"
-        verbose_name_plural = "Журналы проверок"
+        verbose_name = "ОПО"
+        verbose_name_plural = "ОПО"
 
     def __str__(self):
-        return str(self.inspection_date) if self.inspection_date else f"Журнал проверок {self.id}"
+        return self.reg_number or self.name or str(self.id)
+
+
+class HazardClass(models.Model):
+    """
+    Модель, представляющая класс опасности.
+    Используется для классификации опасных объектов.
+    """
+    id = models.AutoField(primary_key=True, verbose_name="ID")
+    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название класса опасности")
+
+    class Meta:
+        verbose_name = "Класс опасности"
+        verbose_name_plural = "Классы опасности"
+
+    def __str__(self):
+        return self.name if self.name else "Класс опасности (без названия)"
 
 
 """
@@ -206,15 +234,90 @@ class InspectionJournal(models.Model):
 """
 
 
+class Manufacturer(models.Model):
+    """
+    Модель для хранения информации о заводах-изготовителях
+    """
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        verbose_name="Название завода"
+    )
+    country = models.CharField(
+        max_length=200,
+        null=True,
+        blank=True,
+        verbose_name="Страна-производитель"
+    )
+
+    class Meta:
+        verbose_name = "Завод-изготовитель"
+        verbose_name_plural = "Заводы-изготовители"
+
+    def __str__(self):
+        return self.name or str(self.id)
+
+
+class NameTU(models.Model):
+    """
+    Модель для хранения информации о наименованиях тех. устройств.
+    """
+    id = models.IntegerField(primary_key=True, default=0, verbose_name="ID")
+    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название")
+
+    class Meta:
+        verbose_name = "Название ТУ"
+        verbose_name_plural = "Названия ТУ"
+
+    def __str__(self):
+        return self.name or str(self.id)
+
+
+class KindTU(models.Model):
+    """
+    Модель для хранения информации о видах тех. устройств.
+    """
+    id = models.IntegerField(primary_key=True, verbose_name="ID")
+    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Вид")
+
+    is_for_journal = models.BooleanField(default=False, verbose_name="Для журнала")
+
+    class Meta:
+        verbose_name = "Вид ТУ"
+        verbose_name_plural = "Виды ТУ"
+
+    def __str__(self):
+        return self.name or str(self.id)
+
+
+class TypeTU(models.Model):
+    """
+    Модель для хранения информации о типах тех. устройств.
+    """
+    id = models.IntegerField(primary_key=True, default=0, verbose_name="ID")
+    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Тип")
+
+    is_for_journal = models.BooleanField(default=False, verbose_name="Для журнала")
+
+    class Meta:
+        verbose_name = "Тип ТУ"
+        verbose_name_plural = "Типы ТУ"
+
+    def __str__(self):
+        return self.name or str(self.id)
+
+
 class TU(models.Model):
     """
     Модель технического устройства с основными характеристиками, идентификаторами,
     параметрами эксплуатации и документами.
     """
-    YES_NO_CHOICES = [
-        (0, "Нет"),
-        (1, "Да"),
-    ]
+    # YES_NO_CHOICES = [
+    #     (0, "Нет"),
+    #     (1, "Да"),
+    # ]
 
     id = models.AutoField(primary_key=True, verbose_name="ID")
 
@@ -251,7 +354,7 @@ class TU(models.Model):
                                                       verbose_name="Разрешённый срок эксплуатации")
 
     # Предохранительные устройства
-    has_safety_device = models.IntegerField(choices=YES_NO_CHOICES, null=True, blank=True,
+    has_safety_device = models.BooleanField(null=True, blank=True,
                                             verbose_name="Наличие предохранительного устройства")
     safety_device_type = models.CharField(max_length=200, null=True, blank=True,
                                           verbose_name="Тип предохранительного устройства")
@@ -272,22 +375,24 @@ class TU(models.Model):
     rtn_permission_number = models.CharField(max_length=200, null=True, blank=True, verbose_name="Номер разрешения РТН")
     epb_conclusion_number = models.CharField(max_length=200, null=True, blank=True, verbose_name="Номер заключения ЭПБ")
 
-    passport_present = models.IntegerField(choices=YES_NO_CHOICES, null=True, blank=True,
+    passport_present = models.BooleanField(null=True, blank=True,
                                            verbose_name="Наличие паспорта")
 
     opo_info = models.CharField(max_length=200, null=True, blank=True, verbose_name="Сведения об ОПО")
 
-    rtn_info = models.CharField(choices=YES_NO_CHOICES, null=True, blank=True, verbose_name="Информация РТН")
+    rtn_info = models.BooleanField(null=True, blank=True, verbose_name="Информация РТН")
 
-    compliance_certificate_present = models.IntegerField(choices=YES_NO_CHOICES, null=True, blank=True,
+    compliance_certificate_present = models.BooleanField(null=True, blank=True,
                                                          verbose_name="Наличие сертификата соответствия")
-    rtn_certificate_present = models.IntegerField(choices=YES_NO_CHOICES, null=True, blank=True,
+    rtn_certificate_present = models.BooleanField(null=True, blank=True,
                                                   verbose_name="Наличие сертификата РТН")
 
     # Изготовитель
-    manufacturer_id = models.BigIntegerField(null=True, blank=True, verbose_name="ID завода-изготовителя")
-    manufacturer_country = models.CharField(max_length=200, null=True, blank=True, verbose_name="Страна-производитель")
-    manufacturer_name = models.CharField(max_length=500, null=True, blank=True, verbose_name="Завод-изготовитель")
+    manufacturer_id = models.ForeignKey(Manufacturer, on_delete=models.CASCADE, null=True, blank=True,
+                                        verbose_name="ID завода-изготовителя")
+    # manufacturer_country = models.CharField(max_length=200, null=True, blank=True,
+    #                                         verbose_name="Страна-производитель")
+    # manufacturer_name = models.CharField(max_length=500, null=True, blank=True, verbose_name="Завод-изготовитель")
 
     # Прочее
     epb_conclusion = models.CharField(max_length=200, null=True, blank=True, verbose_name="Вывод ЭПБ")
@@ -300,24 +405,26 @@ class TU(models.Model):
     note3 = models.TextField(null=True, blank=True, verbose_name="Примечание 3")
 
     # Идентификаторы
-    opo_id = models.BigIntegerField(verbose_name="ID ОПО")
-    hazard_class_id = models.BigIntegerField(null=True, blank=True, verbose_name="ID класса опасности")
-    device_type_id = models.BigIntegerField(null=True, blank=True, verbose_name="ID типа устройства")
-    device_name_id = models.BigIntegerField(verbose_name="ID наименования устройства")
-    rtn_id = models.IntegerField(null=True, blank=True, verbose_name="ID РТН")
+    opo_id = models.ForeignKey(OPO, on_delete=models.CASCADE, verbose_name="ID ОПО")
+    hazard_class_id = models.ForeignKey(HazardClass, on_delete=models.CASCADE, null=True, blank=True,
+                                        verbose_name="ID класса опасности")
+    device_type_id = models.ForeignKey(TypeTU, on_delete=models.CASCADE, null=True, blank=True,
+                                       verbose_name="ID типа устройства")
+    device_name_id = models.ForeignKey(NameTU, on_delete=models.CASCADE, verbose_name="ID наименования устройства")
+    # rtn_id = models.IntegerField(null=True, blank=True, verbose_name="ID РТН") #что это?
 
-    kind_device_id = models.BigIntegerField(verbose_name="ID вида устройства")
-    kind_device_j_id = models.IntegerField(null=True, blank=True, verbose_name="ID вида устройства (J)")
-    type_device_j_id = models.IntegerField(null=True, blank=True, verbose_name="ID типа устройства (J)")
+    kind_device_id = models.ForeignKey(KindTU, on_delete=models.CASCADE, verbose_name="ID вида устройства")
+    # kind_device_j_id = models.IntegerField(null=True, blank=True, verbose_name="ID вида устройства (J)")
+    # type_device_j_id = models.IntegerField(null=True, blank=True, verbose_name="ID типа устройства (J)")
 
     # Контроль
     sr_control_presence_id = models.IntegerField(null=True, blank=True, verbose_name="ID наличия СР контроля")
-    cb_oncontrol = models.IntegerField(choices=YES_NO_CHOICES, default=0, verbose_name="На контроле")  # ?
+    cb_oncontrol = models.BooleanField(default=0, verbose_name="На контроле")  # ?
 
     # Обновления
     date_updated = models.DateTimeField(null=True, blank=True, verbose_name="Дата обновления")
     updated_by = models.CharField(max_length=100, null=True, blank=True, verbose_name="Обновлено пользователем")
-    is_deleted = models.IntegerField(choices=YES_NO_CHOICES, default=0, verbose_name="Удалено")  # ?
+    is_deleted = models.BooleanField(default=0, verbose_name="Удалено")
 
     class Meta:
         verbose_name = "Техническое устройство"
@@ -327,36 +434,25 @@ class TU(models.Model):
         return self.brand or self.registration_number or str(self.id)
 
 
-class NameTU(models.Model):
+class Certificate(models.Model):
     """
-    Модель для хранения информации о наименованиях тех. устройств.
+    Модель для хранения информации о сертификате ТУ
     """
-    id = models.IntegerField(primary_key=True, default=0, verbose_name="ID")
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название")
+    id = models.BigAutoField(primary_key=True, verbose_name="ID сертификата")
+    type = models.CharField(max_length=500, verbose_name="Тип сертификата")
+    number = models.CharField(max_length=200, verbose_name="Номер сертификата")
+    date_from = models.DateField(null=True, blank=True, verbose_name="Дата выдачи")
+    date_to = models.DateField(null=True, blank=True, verbose_name="Дата окончания")
+    issued_by = models.CharField(max_length=500, verbose_name="Кем выдано")
+    tu_id = models.OneToOneField(TU, on_delete=models.CASCADE, verbose_name="ID ТУ")
+    scan = models.BinaryField(null=True, blank=True, verbose_name="Скан-копия")
 
     class Meta:
-        verbose_name = "Название ТУ"
-        verbose_name_plural = "Названия ТУ"
+        verbose_name = "Сертификат"
+        verbose_name_plural = "Сертификаты"
 
     def __str__(self):
-        return self.name or str(self.id)
-
-
-class KindTU(models.Model):
-    """
-    Модель для хранения информации о видах тех. устройств.
-    """
-    id = models.IntegerField(primary_key=True, verbose_name="ID")
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Вид")
-
-    is_for_journal = models.BooleanField(default=False, verbose_name="Для журнала")
-
-    class Meta:
-        verbose_name = "Вид ТУ"
-        verbose_name_plural = "Виды ТУ"
-
-    def __str__(self):
-        return self.name or str(self.id)
+        return self.number or str(self.id)
 
 
 # class KindTUJournal(models.Model):
@@ -372,23 +468,6 @@ class KindTU(models.Model):
 #
 #     def __str__(self):
 #         return self.name or str(self.id)
-
-
-class TypeTU(models.Model):
-    """
-    Модель для хранения информации о типах тех. устройств.
-    """
-    id = models.IntegerField(primary_key=True, default=0, verbose_name="ID")
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Тип")
-
-    is_for_journal = models.BooleanField(default=False, verbose_name="Для журнала")
-
-    class Meta:
-        verbose_name = "Тип ТУ"
-        verbose_name_plural = "Типы ТУ"
-
-    def __str__(self):
-        return self.name or str(self.id)
 
 
 # class TypeTUJournal(models.Model):
@@ -427,7 +506,8 @@ class ControlNote(models.Model):
     Содержит текст заметки, дату создания и связанную информацию.
     """
     id = models.AutoField(primary_key=True, verbose_name="ID")
-    tu_id = models.IntegerField(null=True, blank=True, verbose_name="ID технического устройства")
+    tu_id = models.ForeignKey(TU, on_delete=models.CASCADE, null=True, blank=True,
+                              verbose_name="ID технического устройства")
     auto_card_number = models.IntegerField(null=True, blank=True, verbose_name="Номер карты пользователя")
     text = models.TextField(null=True, blank=True, verbose_name="Текст заметки")
     created_at = models.DateTimeField(null=True, blank=True, verbose_name="Дата создания")
@@ -470,102 +550,44 @@ class ControlNote(models.Model):
 #         return self.txt or str(self.id)
 
 
-class Certificate(models.Model):
-    """
-    Модель для хранения информации о сертификате ТУ
-    """
-    id = models.BigAutoField(primary_key=True, verbose_name="ID сертификата")
-    type = models.CharField(max_length=500, verbose_name="Тип сертификата")
-    number = models.CharField(max_length=200, verbose_name="Номер сертификата")
-    date_from = models.DateField(null=True, blank=True, verbose_name="Дата выдачи")
-    date_to = models.DateField(null=True, blank=True, verbose_name="Дата окончания")
-    issued_by = models.CharField(max_length=500, verbose_name="Кем выдано")
-    tu_id = models.BigIntegerField(verbose_name="ID ТУ")
-    scan = models.BinaryField(null=True, blank=True, verbose_name="Скан-копия")
-
-    class Meta:
-        verbose_name = "Сертификат"
-        verbose_name_plural = "Сертификаты"
-
-    def __str__(self):
-        return self.number or str(self.id)
-
-
-class Manufacturer(models.Model):
-    """
-    Модель для хранения информации о заводах-изготовителях
-    """
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(
-        max_length=200,
-        null=True,
-        blank=True,
-        verbose_name="Название завода"
-    )
-
-    class Meta:
-        verbose_name = "Завод-изготовитель"
-        verbose_name_plural = "Заводы-изготовители"
-
-    def __str__(self):
-        return self.name or str(self.id)
-
-
 """
-Опасные объекты и надзор
+Журналы
 """
 
 
-class OPO(models.Model):
+class EPBJournal(models.Model):
     """
-    Модель для хранения информации об ОПО
-    """
-    id = models.BigIntegerField(primary_key=True, verbose_name="ID ОПО")
-    type_id = models.BigIntegerField(verbose_name="ID типа ОПО")
-    structural_unit_id = models.BigIntegerField(verbose_name="ID структурного подразделения")
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название")
-    short_name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Краткое название")
-    reg_number = models.CharField(max_length=100, null=True, blank=True, verbose_name="Регистрационный номер")
-
-    class Meta:
-        verbose_name = "ОПО"
-        verbose_name_plural = "ОПО"
-
-    def __str__(self):
-        return self.reg_number or self.name or str(self.id)
-
-
-class TypeOPO(models.Model):
-    """
-    Модель для хранения информации о типах ОПО
-    """
-    id = models.IntegerField(primary_key=True, default=0, verbose_name="ID")
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название")
-    short_name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Краткое название")
-    reg_number = models.CharField(max_length=200, null=True, blank=True, verbose_name="Регистрационный номер")
-
-    class Meta:
-        verbose_name = "Тип ОПО"
-        verbose_name_plural = "Типы ОПО"
-
-    def __str__(self):
-        return self.name or self.reg_number or str(self.id)
-
-
-class HazardClass(models.Model):
-    """
-    Модель, представляющая класс опасности.
-    Используется для классификации опасных объектов.
+    Модель для хранения записей в журнале эксплуатационной безопасности (ЭПБ).
     """
     id = models.AutoField(primary_key=True, verbose_name="ID")
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name="Название класса опасности")
+    epb_date = models.DateTimeField(null=True, blank=True, verbose_name="Дата ЭПБ")
+    tu_id = models.ForeignKey(TU, on_delete=models.CASCADE, null=True, blank=True,
+                              verbose_name="ID технического устройства")
+    epb_conclusion = models.CharField(max_length=200, null=True, blank=True, verbose_name="Вывод ЭПБ")
 
     class Meta:
-        verbose_name = "Класс опасности"
-        verbose_name_plural = "Классы опасности"
+        verbose_name = "Журнал ЭПБ"
+        verbose_name_plural = "Журналы ЭПБ"
 
     def __str__(self):
-        return self.name if self.name else "Класс опасности (без названия)"
+        return f"{self.epb_date} - {self.epb_conclusion}" if self.epb_conclusion else f"Журнал ЭПБ {self.id}"
+
+
+class InspectionJournal(models.Model):
+    """
+    Модель для хранения записей о проверках.
+    """
+    id = models.AutoField(primary_key=True, verbose_name="ID")
+    inspection_date = models.DateTimeField(null=True, blank=True, verbose_name="Дата проверки")
+    tu_id = models.ForeignKey(TU, on_delete=models.CASCADE, null=True, blank=True,
+                              verbose_name="ID технического устройства")
+
+    class Meta:
+        verbose_name = "Журнал проверок"
+        verbose_name_plural = "Журналы проверок"
+
+    def __str__(self):
+        return str(self.inspection_date) if self.inspection_date else f"Журнал проверок {self.id}"
 
 
 """
